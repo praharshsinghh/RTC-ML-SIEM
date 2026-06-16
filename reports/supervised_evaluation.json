@@ -1,0 +1,476 @@
+{
+  "phase": "2_supervised_models",
+  "models": {
+    "random_forest": {
+      "model_name": "RandomForest",
+      "macro_f1": 0.5969,
+      "weighted_f1": 0.9758,
+      "roc_auc": 0.9953,
+      "fpr": 0.014222,
+      "fpr_note": "FPR = FP/(FP+TN) on binary normal-vs-attack. FP=6311, TN=437442. Means 1.42% of normal traffic is mis-flagged as attack.",
+      "confusion_matrix": [
+        [
+          135,
+          223,
+          156,
+          21,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          194,
+          67,
+          176,
+          15,
+          2,
+          0,
+          4,
+          7,
+          1,
+          0
+        ],
+        [
+          591,
+          1459,
+          739,
+          419,
+          23,
+          1,
+          20,
+          18,
+          1,
+          0
+        ],
+        [
+          809,
+          1565,
+          967,
+          5195,
+          40,
+          22,
+          250,
+          40,
+          14,
+          3
+        ],
+        [
+          114,
+          341,
+          99,
+          22,
+          4267,
+          0,
+          6,
+          0,
+          0,
+          0
+        ],
+        [
+          82,
+          165,
+          131,
+          289,
+          21,
+          42391,
+          2,
+          10,
+          3,
+          2
+        ],
+        [
+          86,
+          220,
+          150,
+          122,
+          4,
+          1,
+          2215,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          1,
+          9,
+          2,
+          1,
+          0,
+          289,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          1,
+          7,
+          0,
+          0,
+          0,
+          0,
+          27,
+          0
+        ],
+        [
+          603,
+          4,
+          30,
+          348,
+          5279,
+          8,
+          21,
+          18,
+          0,
+          437442
+        ]
+      ],
+      "confusion_matrix_labels": [
+        "Analysis",
+        "Backdoors",
+        "DoS",
+        "Exploits",
+        "Fuzzers",
+        "Generic",
+        "Reconnaissance",
+        "Shellcode",
+        "Worms",
+        "unknown"
+      ],
+      "per_class": {
+        "Analysis": {
+          "precision": 0.0516,
+          "recall": 0.2523,
+          "f1": 0.0857,
+          "support": 535
+        },
+        "Backdoors": {
+          "precision": 0.0166,
+          "recall": 0.1438,
+          "f1": 0.0297,
+          "support": 466
+        },
+        "DoS": {
+          "precision": 0.3016,
+          "recall": 0.2259,
+          "f1": 0.2583,
+          "support": 3271
+        },
+        "Exploits": {
+          "precision": 0.8058,
+          "recall": 0.5834,
+          "f1": 0.6768,
+          "support": 8905
+        },
+        "Fuzzers": {
+          "precision": 0.4427,
+          "recall": 0.88,
+          "f1": 0.5891,
+          "support": 4849
+        },
+        "Generic": {
+          "precision": 0.9992,
+          "recall": 0.9836,
+          "f1": 0.9914,
+          "support": 43096
+        },
+        "Reconnaissance": {
+          "precision": 0.8797,
+          "recall": 0.7916,
+          "f1": 0.8333,
+          "support": 2798
+        },
+        "Shellcode": {
+          "precision": 0.7565,
+          "recall": 0.957,
+          "f1": 0.845,
+          "support": 302
+        },
+        "Worms": {
+          "precision": 0.587,
+          "recall": 0.7714,
+          "f1": 0.6667,
+          "support": 35
+        },
+        "unknown": {
+          "precision": 1.0,
+          "recall": 0.9858,
+          "f1": 0.9928,
+          "support": 443753
+        }
+      }
+    },
+    "xgboost": {
+      "model_name": "XGBoost",
+      "macro_f1": 0.6039,
+      "weighted_f1": 0.9762,
+      "roc_auc": 0.9965,
+      "fpr": 0.014522,
+      "fpr_note": "FPR = FP/(FP+TN) on binary normal-vs-attack. FP=6444, TN=437309. Means 1.45% of normal traffic is mis-flagged as attack.",
+      "confusion_matrix": [
+        [
+          160,
+          153,
+          219,
+          3,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          121,
+          84,
+          237,
+          10,
+          2,
+          0,
+          5,
+          6,
+          1,
+          0
+        ],
+        [
+          515,
+          715,
+          1616,
+          368,
+          11,
+          0,
+          28,
+          16,
+          2,
+          0
+        ],
+        [
+          677,
+          872,
+          1971,
+          4842,
+          41,
+          20,
+          388,
+          58,
+          34,
+          2
+        ],
+        [
+          112,
+          231,
+          213,
+          18,
+          4271,
+          0,
+          4,
+          0,
+          0,
+          0
+        ],
+        [
+          62,
+          89,
+          261,
+          286,
+          13,
+          42363,
+          4,
+          13,
+          4,
+          1
+        ],
+        [
+          59,
+          142,
+          264,
+          38,
+          3,
+          0,
+          2292,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          1,
+          5,
+          3,
+          0,
+          0,
+          0,
+          293,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          1,
+          2,
+          0,
+          0,
+          0,
+          0,
+          32,
+          0
+        ],
+        [
+          746,
+          3,
+          70,
+          251,
+          5324,
+          11,
+          14,
+          25,
+          0,
+          437309
+        ]
+      ],
+      "confusion_matrix_labels": [
+        "Analysis",
+        "Backdoors",
+        "DoS",
+        "Exploits",
+        "Fuzzers",
+        "Generic",
+        "Reconnaissance",
+        "Shellcode",
+        "Worms",
+        "unknown"
+      ],
+      "per_class": {
+        "Analysis": {
+          "precision": 0.0653,
+          "recall": 0.2991,
+          "f1": 0.1071,
+          "support": 535
+        },
+        "Backdoors": {
+          "precision": 0.0367,
+          "recall": 0.1803,
+          "f1": 0.061,
+          "support": 466
+        },
+        "DoS": {
+          "precision": 0.3327,
+          "recall": 0.494,
+          "f1": 0.3976,
+          "support": 3271
+        },
+        "Exploits": {
+          "precision": 0.8318,
+          "recall": 0.5437,
+          "f1": 0.6576,
+          "support": 8905
+        },
+        "Fuzzers": {
+          "precision": 0.4419,
+          "recall": 0.8808,
+          "f1": 0.5885,
+          "support": 4849
+        },
+        "Generic": {
+          "precision": 0.9993,
+          "recall": 0.983,
+          "f1": 0.9911,
+          "support": 43096
+        },
+        "Reconnaissance": {
+          "precision": 0.838,
+          "recall": 0.8192,
+          "f1": 0.8285,
+          "support": 2798
+        },
+        "Shellcode": {
+          "precision": 0.7129,
+          "recall": 0.9702,
+          "f1": 0.8219,
+          "support": 302
+        },
+        "Worms": {
+          "precision": 0.4384,
+          "recall": 0.9143,
+          "f1": 0.5926,
+          "support": 35
+        },
+        "unknown": {
+          "precision": 1.0,
+          "recall": 0.9855,
+          "f1": 0.9927,
+          "support": 443753
+        }
+      }
+    }
+  },
+  "metadata": {
+    "train_rows": 2032037,
+    "test_rows": 508010,
+    "n_features": 43,
+    "feature_names": [
+      "sport",
+      "dsport",
+      "proto",
+      "state",
+      "dur",
+      "sbytes",
+      "dbytes",
+      "sttl",
+      "dttl",
+      "sloss",
+      "dloss",
+      "service",
+      "Sload",
+      "Dload",
+      "Spkts",
+      "Dpkts",
+      "swin",
+      "dwin",
+      "stcpb",
+      "dtcpb",
+      "smeansz",
+      "dmeansz",
+      "trans_depth",
+      "res_bdy_len",
+      "Sjit",
+      "Djit",
+      "Sintpkt",
+      "Dintpkt",
+      "tcprtt",
+      "synack",
+      "ackdat",
+      "is_sm_ips_ports",
+      "ct_state_ttl",
+      "ct_flw_http_mthd",
+      "is_ftp_login",
+      "ct_ftp_cmd",
+      "ct_srv_src",
+      "ct_srv_dst",
+      "ct_dst_ltm",
+      "ct_src_ltm",
+      "ct_src_dport_ltm",
+      "ct_dst_sport_ltm",
+      "ct_dst_src_ltm"
+    ],
+    "classes": [
+      "Analysis",
+      "Backdoors",
+      "DoS",
+      "Exploits",
+      "Fuzzers",
+      "Generic",
+      "Reconnaissance",
+      "Shellcode",
+      "Worms",
+      "unknown"
+    ],
+    "elapsed_total_seconds": 403.0
+  }
+}
