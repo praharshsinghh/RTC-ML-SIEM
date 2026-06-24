@@ -1,0 +1,164 @@
+{
+  "phase": "4_ensemble_detection",
+  "ensemble": {
+    "model_name": "EnsembleDetector",
+    "accuracy": 1.0,
+    "precision": 0.0,
+    "recall": 0.0,
+    "f1": 0.0,
+    "false_positive_rate": 0.0,
+    "fpr_note": "FPR = FP/(FP+TN) on binary normal-vs-attack. FP=0, TN=10. Means 0.00% of normal traffic triggers a false alarm.",
+    "confusion_matrix": [
+      [
+        10,
+        0
+      ],
+      [
+        0,
+        0
+      ]
+    ],
+    "confusion_matrix_labels": [
+      "normal",
+      "attack"
+    ],
+    "tp": 0,
+    "tn": 10,
+    "fp": 0,
+    "fn": 0,
+    "agreement_stats": {
+      "full_agreement_all4": 10,
+      "high_agreement_3of4": 0,
+      "split_vote_slim_majority": 0,
+      "low_agreement_minority": 0,
+      "mean_agreement": 1.0,
+      "std_agreement": 0.0
+    },
+    "severity_distribution": {
+      "CRITICAL": 0,
+      "HIGH": 0,
+      "MEDIUM": 0,
+      "LOW": 0,
+      "N/A": 10
+    },
+    "confidence_stats": {
+      "mean": 1.0,
+      "std": 0.0,
+      "p25": 1.0,
+      "p50": 1.0,
+      "p75": 1.0
+    },
+    "individual_model_comparison": {
+      "RandomForest": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "false_positive_rate": 0.0
+      },
+      "XGBoost": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "false_positive_rate": 0.0
+      },
+      "IsolationForest": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "false_positive_rate": 0.0
+      },
+      "DenseAutoencoder": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "false_positive_rate": 0.0
+      },
+      "Ensemble": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "false_positive_rate": 0.0
+      }
+    },
+    "n_samples": 10,
+    "n_attack": 0,
+    "n_normal": 10
+  },
+  "configuration": {
+    "model_weights": {
+      "RandomForest": 0.35,
+      "XGBoost": 0.35,
+      "IsolationForest": 0.15,
+      "DenseAutoencoder": 0.15
+    },
+    "attack_threshold": 0.5,
+    "weight_rationale": "Supervised models (RF, XGB) receive weight 0.35 each because they are trained on labelled attack categories and optimised directly for classification precision/recall. Anomaly detectors (IF, AE) receive 0.15 each because they are unsupervised: they detect deviation from normal patterns but cannot categorise attacks and typically have higher false positive rates. The 0.70/0.30 split ensures supervised consensus can override anomaly detector noise while preserving the zero-day detection capability of the unsupervised layer.",
+    "threshold_rationale": "ATTACK threshold = 0.50 is the natural midpoint of [0,1]. It means the combined weight of ATTACK-voting models equals or exceeds the NORMAL-voting weight. No test-set calibration was performed \u2014 this is a principled default preserving strict train/test separation.",
+    "severity_matrix": {
+      "CRITICAL": "confidence >= 0.85 AND agreement >= 0.85",
+      "HIGH": "confidence >= 0.70 AND agreement >= 0.70",
+      "MEDIUM": "confidence >= 0.50 AND agreement >= 0.50",
+      "LOW": "any ATTACK not meeting the above thresholds"
+    },
+    "category_resolution": {
+      "rule_1": "NORMAL verdict \u2192 'unknown'",
+      "rule_2": "Both RF & XGB agree on same non-normal cat \u2192 use that cat",
+      "rule_3": "RF & XGB disagree \u2192 use category from model with higher raw_score",
+      "rule_4": "No supervised model voted ATTACK \u2192 'Anomaly' (zero-day)"
+    }
+  },
+  "metadata": {
+    "test_rows": 10,
+    "n_attack": 0,
+    "n_normal": 10,
+    "n_features": 43,
+    "feature_names": [
+      "sport",
+      "dsport",
+      "proto",
+      "state",
+      "dur",
+      "sbytes",
+      "dbytes",
+      "sttl",
+      "dttl",
+      "sloss",
+      "dloss",
+      "service",
+      "Sload",
+      "Dload",
+      "Spkts",
+      "Dpkts",
+      "swin",
+      "dwin",
+      "stcpb",
+      "dtcpb",
+      "smeansz",
+      "dmeansz",
+      "trans_depth",
+      "res_bdy_len",
+      "Sjit",
+      "Djit",
+      "Sintpkt",
+      "Dintpkt",
+      "tcprtt",
+      "synack",
+      "ackdat",
+      "is_sm_ips_ports",
+      "ct_state_ttl",
+      "ct_flw_http_mthd",
+      "is_ftp_login",
+      "ct_ftp_cmd",
+      "ct_srv_src",
+      "ct_srv_dst",
+      "ct_dst_ltm",
+      "ct_src_ltm",
+      "ct_src_dport_ltm",
+      "ct_dst_sport_ltm",
+      "ct_dst_src_ltm"
+    ],
+    "sampled": true,
+    "sample_n": 10,
+    "elapsed_total_seconds": 1.2
+  }
+}

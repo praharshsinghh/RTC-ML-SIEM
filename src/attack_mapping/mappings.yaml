@@ -1,0 +1,405 @@
+# src/attack_mapping/mappings.yaml
+# ============================================================
+# UNSW-NB15 Attack Category → MITRE ATT&CK Technique Mapping
+# ============================================================
+#
+# IMPORTANT: This mapping file is the authoritative configuration for
+# Phase 5 enrichment. Every mapping decision is documented here.
+# Modify this file — NOT the Python code — to update or extend mappings.
+#
+# Schema per entry:
+#   category:             UNSW-NB15 attack_cat label (case-sensitive)
+#   primary_technique_id: One ATT&CK ID (Txxxx or Txxxx.yyy)
+#   secondary_technique_ids: [] list of additional relevant IDs
+#   mapping_confidence:   HIGH | MEDIUM | LOW
+#     HIGH   = UNSW-NB15 label maps unambiguously to this technique
+#     MEDIUM = mapping is reasonable but could apply to multiple techniques
+#     LOW    = label is too broad; technique chosen as best representative
+#   rationale:            ≥1 sentence documenting why this mapping was chosen
+#   alternatives_considered: techniques considered but not selected (for docs)
+#
+# References
+# ----------
+# MITRE ATT&CK Enterprise v14: https://attack.mitre.org/versions/v14/
+# UNSW-NB15 paper: Moustafa & Slay (2015), doi:10.1109/MilCIS.2015.7348942
+# ATT&CK Network matrix: https://attack.mitre.org/matrices/network/
+#
+# ─────────────────────────────────────────────────────────────────────────────
+
+mappings:
+
+  # ---------------------------------------------------------------------------
+  # Reconnaissance
+  # ---------------------------------------------------------------------------
+  # UNSW-NB15 definition: Automated scanning/probing to gather information
+  # about hosts, services, and network topology before launching an attack.
+  #
+  # ATT&CK mapping rationale:
+  #   T1595 "Active Scanning" directly describes network-level probing —
+  #   specifically IP sweeps, port scans, and service enumeration. This is
+  #   the textbook mapping: the adversary is in the ATT&CK Reconnaissance
+  #   tactic phase, gathering information to plan future attacks.
+  #   T1595.001 (Scanning IP Blocks) and T1595.002 (Vulnerability Scanning)
+  #   are sub-techniques covering the specific scan types present in UNSW-NB15.
+  #
+  #   Alternative T1046 "Network Service Discovery" was considered but belongs
+  #   to the Discovery tactic (post-compromise internal scanning), not external
+  #   pre-attack reconnaissance — an important distinction in the kill chain.
+  # ---------------------------------------------------------------------------
+  - category: Reconnaissance
+    primary_technique_id: "T1595"
+    secondary_technique_ids:
+      - "T1595.001"   # Scanning IP Blocks
+      - "T1595.002"   # Vulnerability Scanning
+      - "T1590"       # Gather Victim Network Information
+    mapping_confidence: HIGH
+    tactic_override: null
+    rationale: >
+      UNSW-NB15 Reconnaissance traffic consists of port sweeps, OS fingerprinting,
+      and service enumeration — the canonical behaviour of ATT&CK T1595 Active
+      Scanning. The Reconnaissance tactic is the correct kill-chain phase:
+      external probing before any exploitation attempt.
+    alternatives_considered:
+      - "T1046 (Network Service Discovery) — rejected: this is Discovery tactic
+         (post-compromise), not pre-attack external Reconnaissance"
+      - "T1590 (Gather Victim Network Information) — included as secondary;
+         covers passive collection that may co-occur with active scanning"
+
+  # ---------------------------------------------------------------------------
+  # Exploits
+  # ---------------------------------------------------------------------------
+  # UNSW-NB15 definition: Attacks exploiting known or zero-day software
+  # vulnerabilities to compromise services (buffer overflows, SQLi, etc.).
+  #
+  # ATT&CK mapping rationale:
+  #   T1190 "Exploit Public-Facing Application" is the highest-match technique:
+  #   UNSW-NB15 Exploits target network-accessible services, which is the
+  #   definition of T1190. This places the attack in the Initial Access tactic —
+  #   the adversary is gaining a foothold through vulnerability exploitation.
+  #   T1203 "Exploitation for Client Execution" covers client-side variants.
+  #   T1210 "Exploitation of Remote Services" covers lateral movement exploits.
+  #
+  #   Mapping confidence is MEDIUM because "Exploits" is a broad label —
+  #   individual exploit instances could map to T1190, T1203, or T1210
+  #   depending on their specific target (server vs client vs internal service).
+  # ---------------------------------------------------------------------------
+  - category: Exploits
+    primary_technique_id: "T1190"
+    secondary_technique_ids:
+      - "T1203"   # Exploitation for Client Execution
+      - "T1210"   # Exploitation of Remote Services
+      - "T1068"   # Exploitation for Privilege Escalation
+    mapping_confidence: MEDIUM
+    tactic_override: null
+    rationale: >
+      UNSW-NB15 Exploits target publicly-accessible network services using known
+      vulnerability exploitation — the core behaviour of T1190. Initial Access is
+      the correct tactic because these attacks represent the entry point.
+      T1203 and T1210 are secondaries covering client-side and lateral-movement
+      exploit variants that may be present in the dataset.
+    alternatives_considered:
+      - "T1059 (Command and Scripting Interpreter) — rejected: post-exploitation;
+         Exploits label covers the initial exploitation act, not its payload"
+      - "T1203 as primary — rejected: client-side exploits are a subset;
+         network service exploits are more prevalent in UNSW-NB15"
+
+  # ---------------------------------------------------------------------------
+  # DoS (Denial of Service)
+  # ---------------------------------------------------------------------------
+  # UNSW-NB15 definition: Attacks that degrade or deny service availability
+  # through resource exhaustion (SYN floods, UDP floods, HTTP floods).
+  #
+  # ATT&CK mapping rationale:
+  #   T1498 "Network Denial of Service" is a direct match: it specifically
+  #   covers volumetric network-layer DoS attacks (bandwidth/connection flooding)
+  #   which is the dominant pattern in UNSW-NB15 DoS traffic. The Impact tactic
+  #   is correct — the adversary goal is disrupting service availability.
+  #   T1499 "Endpoint Denial of Service" covers application-layer variants.
+  #   T1498.001 (Direct Network Flood) and T1498.002 (Reflection Amplification)
+  #   are sub-techniques matching specific flood mechanisms in the dataset.
+  # ---------------------------------------------------------------------------
+  - category: DoS
+    primary_technique_id: "T1498"
+    secondary_technique_ids:
+      - "T1498.001"   # Direct Network Flood
+      - "T1498.002"   # Reflection Amplification
+      - "T1499"       # Endpoint Denial of Service
+    mapping_confidence: HIGH
+    tactic_override: null
+    rationale: >
+      UNSW-NB15 DoS traffic comprises volumetric flooding attacks (SYN, UDP,
+      HTTP floods) directly matching T1498 Network Denial of Service under the
+      Impact tactic. The adversary goal is resource exhaustion causing service
+      unavailability — precisely the Impact tactic objective.
+    alternatives_considered:
+      - "T1499 (Endpoint Denial of Service) — included as secondary; covers
+         application-layer resource exhaustion (e.g. HTTP slowloris)"
+
+  # ---------------------------------------------------------------------------
+  # Backdoors
+  # ---------------------------------------------------------------------------
+  # UNSW-NB15 definition: Traffic associated with remote access tools or
+  # backdoor implants that maintain covert persistent access to compromised hosts.
+  #
+  # ATT&CK mapping rationale:
+  #   T1505 "Server Software Component" maps to server-side backdoors such as
+  #   web shells inserted into web servers. However, the broader behaviour —
+  #   maintaining persistent remote access over a covert channel — maps to
+  #   T1071 "Application Layer Protocol" (C2 over HTTP/HTTPS/DNS) combined
+  #   with T1543 "Create or Modify System Process" for persistence.
+  #   We select T1505 as primary because UNSW-NB15 Backdoor traffic exhibits
+  #   server-side implant behaviour (web shells, SSH tunnels).
+  #   T1571 "Non-Standard Port" is included as secondary since many backdoors
+  #   use non-standard ports to evade firewall rules.
+  # ---------------------------------------------------------------------------
+  - category: Backdoors
+    primary_technique_id: "T1505"
+    secondary_technique_ids:
+      - "T1071"   # Application Layer Protocol (C2 communication)
+      - "T1543"   # Create or Modify System Process (persistence)
+      - "T1571"   # Non-Standard Port
+    mapping_confidence: MEDIUM
+    tactic_override: null
+    rationale: >
+      UNSW-NB15 Backdoor traffic shows characteristics of server-side implants
+      (web shells, SSH backdoors) maintaining persistent access — matching T1505
+      under the Persistence tactic. Secondary techniques cover the C2 communication
+      channel (T1071) and process-level persistence (T1543).
+    alternatives_considered:
+      - "T1078 (Valid Accounts) — rejected: Backdoors create new access mechanisms,
+         not abuse of legitimate credentials"
+      - "T1021 (Remote Services) — considered: legitimate RDP/SSH used maliciously;
+         included conceptually via T1543"
+
+  # ---------------------------------------------------------------------------
+  # Shellcode
+  # ---------------------------------------------------------------------------
+  # UNSW-NB15 definition: Traffic containing binary shellcode payloads
+  # typically used to gain code execution after a successful exploit.
+  #
+  # ATT&CK mapping rationale:
+  #   T1059 "Command and Scripting Interpreter" is the closest match for
+  #   shellcode delivery: after exploitation (T1190), the shellcode payload
+  #   spawns a shell or interpreter to execute adversary commands. Shellcode
+  #   is by definition executable code, making Execution the correct tactic.
+  #   T1055 "Process Injection" covers shellcode injected into running processes
+  #   (DLL injection, shellcode injection into process memory).
+  #   T1068 "Exploitation for Privilege Escalation" covers shellcode used
+  #   specifically for privilege escalation payloads.
+  #
+  #   Mapping confidence is MEDIUM: "Shellcode" in UNSW-NB15 may include both
+  #   delivery-phase shellcode and execution-phase payloads.
+  # ---------------------------------------------------------------------------
+  - category: Shellcode
+    primary_technique_id: "T1059"
+    secondary_technique_ids:
+      - "T1055"   # Process Injection
+      - "T1068"   # Exploitation for Privilege Escalation
+      - "T1203"   # Exploitation for Client Execution
+    mapping_confidence: MEDIUM
+    tactic_override: null
+    rationale: >
+      Shellcode represents executable code payloads delivered post-exploitation
+      to spawn command execution capability — the Execution tactic. T1059 covers
+      the resulting interpreter/shell spawned by shellcode. T1055 covers in-memory
+      injection techniques used to execute shellcode without writing to disk.
+    alternatives_considered:
+      - "T1055.001 (Dynamic-link Library Injection) — too specific; general
+         shellcode label warrants parent T1055"
+      - "T1027 (Obfuscated Files or Information) — relevant for encoded shellcode
+         delivery but not for the execution behaviour itself"
+
+  # ---------------------------------------------------------------------------
+  # Analysis
+  # ---------------------------------------------------------------------------
+  # UNSW-NB15 definition: Traffic from network analysis tools such as Wireshark,
+  # nmap, tcpdump, or protocol analysers used to capture and inspect traffic.
+  #
+  # ATT&CK mapping rationale:
+  #   T1040 "Network Sniffing" is the direct match for passive traffic capture
+  #   and analysis tools. Credential Access and Discovery are both applicable
+  #   tactics — sniffing can be used both to capture credentials and to map the
+  #   network. We assign Discovery as primary because the UNSW-NB15 Analysis
+  #   category focuses on information gathering rather than credential theft.
+  #   T1046 "Network Service Discovery" covers the service enumeration aspect.
+  #
+  #   Mapping confidence is LOW: "Analysis" is a broad label that encompasses
+  #   both passive sniffing and active analysis tools; the ATT&CK equivalent
+  #   depends on whether the intent is credential capture or network mapping.
+  # ---------------------------------------------------------------------------
+  - category: Analysis
+    primary_technique_id: "T1040"
+    secondary_technique_ids:
+      - "T1046"   # Network Service Discovery
+      - "T1057"   # Process Discovery
+      - "T1018"   # Remote System Discovery
+    mapping_confidence: LOW
+    tactic_override: null
+    rationale: >
+      UNSW-NB15 Analysis traffic comes from passive monitoring and protocol
+      analysis tools — best represented by T1040 Network Sniffing. The Discovery
+      tactic covers information-gathering on the network without active exploitation.
+      Mapping confidence is LOW because "Analysis" could represent legitimate
+      network management or malicious reconnaissance.
+    alternatives_considered:
+      - "T1557 (Adversary-in-the-Middle) — rejected: requires active traffic
+         interception; passive sniffers don't modify traffic"
+      - "T1595 (Active Scanning) — rejected: Analysis tools are primarily passive"
+
+  # ---------------------------------------------------------------------------
+  # Generic
+  # ---------------------------------------------------------------------------
+  # UNSW-NB15 definition: A catch-all category for attack traffic that does not
+  # fit neatly into more specific categories — often unclassified exploits,
+  # protocol violations, or mixed attack signatures.
+  #
+  # ATT&CK mapping rationale:
+  #   T1190 "Exploit Public-Facing Application" is selected as the primary
+  #   because Generic attacks in UNSW-NB15 are predominantly exploit attempts
+  #   against network services that were not specifically categorised. Initial
+  #   Access reflects that these are inbound attack attempts.
+  #   Mapping confidence is LOW: Generic is inherently a heterogeneous label
+  #   containing multiple technique types.
+  #
+  #   Viva note: "Generic" demonstrates the fundamental limitation of mapping
+  #   dataset-level labels to ATT&CK techniques — not all empirical traffic
+  #   categories map cleanly to a single adversary behaviour.
+  # ---------------------------------------------------------------------------
+  - category: Generic
+    primary_technique_id: "T1190"
+    secondary_technique_ids:
+      - "T1059"   # Command and Scripting Interpreter
+      - "T1105"   # Ingress Tool Transfer
+    mapping_confidence: LOW
+    tactic_override: null
+    rationale: >
+      UNSW-NB15 Generic attacks are heterogeneous unclassified attack traffic.
+      T1190 (Exploit Public-Facing Application) is selected as the best representative
+      because the majority of generic attacks in network intrusion datasets are
+      exploit attempts against exposed services. Mapping confidence is LOW due to
+      the inherent ambiguity of this catch-all category.
+    alternatives_considered:
+      - "Multiple techniques simultaneously — not supported in primary mapping;
+         secondaries capture the key alternatives"
+      - "T1059 — relevant for generic script-based attacks; included as secondary"
+
+  # ---------------------------------------------------------------------------
+  # Fuzzers
+  # ---------------------------------------------------------------------------
+  # UNSW-NB15 definition: Automated fuzzing attacks that send malformed,
+  # unexpected, or random inputs to services to trigger crashes, memory
+  # corruption, or unintended behaviour (vulnerability discovery phase).
+  #
+  # ATT&CK mapping rationale:
+  #   T1190 "Exploit Public-Facing Application" is again selected because
+  #   fuzzing in the UNSW-NB15 context is directed at public-facing network
+  #   services — the objective is to trigger a vulnerability (Initial Access).
+  #   However, fuzzing could also represent the reconnaissance/preparation
+  #   phase before exploitation. T1595.002 "Vulnerability Scanning" captures
+  #   the discovery aspect; T1499 covers resource exhaustion from fuzzing.
+  #
+  #   Mapping confidence is MEDIUM: fuzzing has a clear adversary goal
+  #   (finding exploitable vulnerabilities) but the ATT&CK label maps to
+  #   the outcome (exploitation) rather than the method (fuzzing).
+  # ---------------------------------------------------------------------------
+  - category: Fuzzers
+    primary_technique_id: "T1190"
+    secondary_technique_ids:
+      - "T1595.002"   # Vulnerability Scanning
+      - "T1499"       # Endpoint Denial of Service (crash as side effect)
+    mapping_confidence: MEDIUM
+    tactic_override: "initial-access"
+    rationale: >
+      Fuzzing attacks send malformed inputs to expose vulnerabilities in
+      public-facing services — fitting T1190 (Initial Access) as the intended
+      outcome. T1595.002 captures the discovery/scanning aspect of fuzzing.
+      Note that successful fuzzing may transition to exploitation (T1190)
+      or crash the service as an unintended DoS (T1499).
+    alternatives_considered:
+      - "T1499 as primary — considered: some fuzzing causes service disruption;
+         but the intent is vulnerability discovery, not denial of service"
+      - "T1595 as primary — considered: fuzzing has a reconnaissance flavour;
+         but the target is exploitation, not information gathering"
+
+  # ---------------------------------------------------------------------------
+  # Worms
+  # ---------------------------------------------------------------------------
+  # UNSW-NB15 definition: Self-propagating malware that spreads across networks
+  # by exploiting vulnerabilities, often scanning for new hosts to infect.
+  #
+  # ATT&CK mapping rationale:
+  #   T1210 "Exploitation of Remote Services" captures the propagation mechanism:
+  #   worms exploit remote services to spread laterally across the network.
+  #   The Lateral Movement tactic is correct because worm propagation involves
+  #   moving through the internal network from host to host.
+  #   T1595 covers the scanning phase that worms perform to find new targets.
+  #   T1569 "System Services" covers worms that abuse system services to persist.
+  #
+  #   Worms combine multiple techniques (scanning + exploitation + installation)
+  #   making this a MEDIUM confidence mapping — we select the *propagation*
+  #   behaviour as primary because that is what network traffic captures.
+  # ---------------------------------------------------------------------------
+  - category: Worms
+    primary_technique_id: "T1210"
+    secondary_technique_ids:
+      - "T1595"   # Active Scanning (worm host discovery phase)
+      - "T1190"   # Exploit Public-Facing Application (initial infection)
+      - "T1569"   # System Services (worm persistence mechanism)
+    mapping_confidence: MEDIUM
+    tactic_override: null
+    rationale: >
+      Worms propagate by exploiting remote services across the network —
+      the Lateral Movement tactic. T1210 (Exploitation of Remote Services)
+      captures the host-to-host spread mechanism. T1595 covers the scanning
+      phase worms use to find new targets; T1190 covers the initial infection.
+    alternatives_considered:
+      - "T1190 as primary — rejected: worm propagation is lateral movement,
+         not just initial access; the distinguishing feature is self-propagation"
+      - "T1570 (Lateral Tool Transfer) — relevant for worm dropping payloads;
+         included conceptually via secondary techniques"
+
+  # ---------------------------------------------------------------------------
+  # unknown (Normal traffic)
+  # ---------------------------------------------------------------------------
+  # UNSW-NB15 definition: Benign, legitimate network traffic. Not an attack.
+  #
+  # ATT&CK mapping rationale:
+  #   Normal traffic does not map to any ATT&CK technique because ATT&CK
+  #   describes adversary behaviours, not legitimate activity. We explicitly
+  #   mark this category as unmapped to distinguish it from a mapping failure.
+  #
+  #   In the EnrichedIncident, normal traffic has is_mapped=False and
+  #   primary_technique=None, which is correct and expected behaviour.
+  # ---------------------------------------------------------------------------
+  - category: unknown
+    primary_technique_id: null
+    secondary_technique_ids: []
+    mapping_confidence: HIGH
+    tactic_override: null
+    rationale: >
+      The 'unknown' category represents legitimate normal traffic. ATT&CK
+      describes adversary behaviours; normal traffic has no applicable technique.
+      This is intentionally unmapped — is_mapped=False is the correct output.
+    alternatives_considered: []
+
+  # ---------------------------------------------------------------------------
+  # Anomaly (unsupervised detector output — no supervised category available)
+  # ---------------------------------------------------------------------------
+  # This is not an UNSW-NB15 label but is output by Phase 3 unsupervised models
+  # and Phase 4 ensemble when supervised models don't fire but anomaly detectors
+  # do. It represents a potential zero-day or novel threat.
+  # ---------------------------------------------------------------------------
+  - category: Anomaly
+    primary_technique_id: "T1190"
+    secondary_technique_ids:
+      - "T1595"   # Active Scanning (possible reconnaissance component)
+    mapping_confidence: LOW
+    tactic_override: null
+    rationale: >
+      'Anomaly' is output when supervised models predict normal traffic but
+      anomaly detectors flag it. This represents potential zero-day threats
+      with no category label. T1190 is the fallback — unknown exploit activity —
+      with LOW confidence as the actual technique is unknown.
+    alternatives_considered:
+      - "No mapping / null — alternative; chosen T1190 as best generic fallback
+         to ensure every ATTACK verdict has an ATT&CK entry for reporting"

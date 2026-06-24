@@ -1,0 +1,228 @@
+{
+  "phase": "5_attack_mapping",
+  "stix_info": {
+    "loaded": true,
+    "stix_path": "/home/praharsh/Projects/RTC/data/attack/enterprise-attack.json",
+    "n_techniques": 697,
+    "n_tactics": 15
+  },
+  "validation": {
+    "validation": {
+      "total_categories": 11,
+      "mapped_categories": 10,
+      "unmapped_categories": 1,
+      "valid_technique_ids": [
+        "T1018",
+        "T1040",
+        "T1046",
+        "T1055",
+        "T1057",
+        "T1059",
+        "T1068",
+        "T1071",
+        "T1105",
+        "T1190",
+        "T1203",
+        "T1210",
+        "T1498",
+        "T1498.001",
+        "T1498.002",
+        "T1499",
+        "T1505",
+        "T1543",
+        "T1569",
+        "T1571",
+        "T1590",
+        "T1595",
+        "T1595.001",
+        "T1595.002"
+      ],
+      "invalid_technique_ids": [],
+      "categories_by_confidence": {
+        "HIGH": [
+          "Reconnaissance",
+          "DoS",
+          "unknown"
+        ],
+        "MEDIUM": [
+          "Exploits",
+          "Backdoors",
+          "Shellcode",
+          "Fuzzers",
+          "Worms"
+        ],
+        "LOW": [
+          "Analysis",
+          "Generic",
+          "Anomaly"
+        ]
+      },
+      "per_category": {
+        "Reconnaissance": {
+          "category": "Reconnaissance",
+          "primary_technique_id": "T1595",
+          "mapping_confidence": "HIGH",
+          "primary_valid": true,
+          "secondary_results": {
+            "T1595.001": true,
+            "T1595.002": true,
+            "T1590": true
+          },
+          "warnings": []
+        },
+        "Exploits": {
+          "category": "Exploits",
+          "primary_technique_id": "T1190",
+          "mapping_confidence": "MEDIUM",
+          "primary_valid": true,
+          "secondary_results": {
+            "T1203": true,
+            "T1210": true,
+            "T1068": true
+          },
+          "warnings": []
+        },
+        "DoS": {
+          "category": "DoS",
+          "primary_technique_id": "T1498",
+          "mapping_confidence": "HIGH",
+          "primary_valid": true,
+          "secondary_results": {
+            "T1498.001": true,
+            "T1498.002": true,
+            "T1499": true
+          },
+          "warnings": []
+        },
+        "Backdoors": {
+          "category": "Backdoors",
+          "primary_technique_id": "T1505",
+          "mapping_confidence": "MEDIUM",
+          "primary_valid": true,
+          "secondary_results": {
+            "T1071": true,
+            "T1543": true,
+            "T1571": true
+          },
+          "warnings": []
+        },
+        "Shellcode": {
+          "category": "Shellcode",
+          "primary_technique_id": "T1059",
+          "mapping_confidence": "MEDIUM",
+          "primary_valid": true,
+          "secondary_results": {
+            "T1055": true,
+            "T1068": true,
+            "T1203": true
+          },
+          "warnings": []
+        },
+        "Analysis": {
+          "category": "Analysis",
+          "primary_technique_id": "T1040",
+          "mapping_confidence": "LOW",
+          "primary_valid": true,
+          "secondary_results": {
+            "T1046": true,
+            "T1057": true,
+            "T1018": true
+          },
+          "warnings": []
+        },
+        "Generic": {
+          "category": "Generic",
+          "primary_technique_id": "T1190",
+          "mapping_confidence": "LOW",
+          "primary_valid": true,
+          "secondary_results": {
+            "T1059": true,
+            "T1105": true
+          },
+          "warnings": []
+        },
+        "Fuzzers": {
+          "category": "Fuzzers",
+          "primary_technique_id": "T1190",
+          "mapping_confidence": "MEDIUM",
+          "primary_valid": true,
+          "secondary_results": {
+            "T1595.002": true,
+            "T1499": true
+          },
+          "warnings": []
+        },
+        "Worms": {
+          "category": "Worms",
+          "primary_technique_id": "T1210",
+          "mapping_confidence": "MEDIUM",
+          "primary_valid": true,
+          "secondary_results": {
+            "T1595": true,
+            "T1190": true,
+            "T1569": true
+          },
+          "warnings": []
+        },
+        "unknown": {
+          "category": "unknown",
+          "primary_technique_id": null,
+          "mapping_confidence": "HIGH",
+          "primary_valid": "N/A (intentionally unmapped)",
+          "secondary_results": {},
+          "warnings": []
+        },
+        "Anomaly": {
+          "category": "Anomaly",
+          "primary_technique_id": "T1190",
+          "mapping_confidence": "LOW",
+          "primary_valid": true,
+          "secondary_results": {
+            "T1595": true
+          },
+          "warnings": []
+        }
+      },
+      "validation_passed": true
+    },
+    "coverage": {
+      "total_categories": 11,
+      "mapped_categories": 10,
+      "unmapped_categories": 1,
+      "mapping_coverage_pct": 90.9,
+      "valid_technique_count": 24,
+      "invalid_technique_count": 0,
+      "invalid_technique_ids": [],
+      "validation_passed": true,
+      "confidence_breakdown": {
+        "HIGH": 3,
+        "MEDIUM": 5,
+        "LOW": 3
+      },
+      "categories_needing_review": []
+    }
+  },
+  "enrichment_statistics": {
+    "tactic_distribution": {},
+    "technique_distribution": {},
+    "severity_distribution": {
+      "N/A": 10
+    },
+    "mapping_confidence_distribution": {
+      "HIGH": 0,
+      "MEDIUM": 0,
+      "LOW": 0
+    },
+    "n_total": 10,
+    "n_attack": 0,
+    "n_normal": 10,
+    "elapsed_seconds": 0.07
+  },
+  "metadata": {
+    "stix_path": "/home/praharsh/Projects/RTC/data/attack/enterprise-attack.json",
+    "mappings_path": "/home/praharsh/Projects/RTC/src/attack_mapping/mappings.yaml",
+    "sample_n": 10,
+    "elapsed_total_seconds": 7.7,
+    "generated_at": "2026-06-24T09:21:00.982903+00:00"
+  }
+}
