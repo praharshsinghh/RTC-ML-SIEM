@@ -1,45 +1,21 @@
 """
-src/ensemble/detector.py — EnsembleDetector: Main Correlation Engine
-======================================================================
-The EnsembleDetector is the central coordinator of Phase 4. It:
+src/ensemble/detector.py
+=========================
+SIEM-style correlation engine aggregating four ML detectors.
 
-  1. Holds references to all four trained detector instances
-     (RandomForest, XGBoost, IsolationForest, DenseAutoencoder).
-  2. Exposes a predict() method that produces one EnsembleResult per
-     input row by calling the voting, confidence, and severity modules.
-  3. Exposes an evaluate() method that computes ensemble-level metrics
-     (accuracy, precision, recall, F1, FPR, confusion matrix) AND
-     agreement statistics (full/partial/split vote breakdowns).
-
-Why is this NOT a meta-learner?
----------------------------------
-A meta-learner (stacking) trains a secondary model on the outputs of
-the base models. This is a black-box: the stacker learns arbitrary
-nonlinear combinations of base predictions. We CANNOT explain to an
-analyst or auditor why the stacker fired.
-
-Our EnsembleDetector uses only:
-  - Hard-coded arithmetic (weighted sum, threshold comparison)
-  - Explicit rule tables (severity matrix, category resolution)
-  - No parameters learned from data in the ensemble layer itself
-
-This makes every decision fully traceable: given any EnsembleResult,
-an analyst can independently verify the verdict by computing the
-weighted sum by hand.
+The EnsembleDetector holds references to the four trained model instances
+and exposes predict() and evaluate() methods. Aggregation uses transparent,
+rule-based weighted voting — no stacking or meta-learner — so every
+decision is fully traceable by hand computation.
 
 Relationship to SIEM correlation engines
-------------------------------------------
-A modern SIEM correlation engine (Splunk ES "notable events", IBM QRadar
-"offenses", Microsoft Sentinel "incidents") aggregates evidence from
-multiple data sources and applies rule-based scoring to produce alerts.
-Our EnsembleDetector implements the ML analogue of this architecture:
-  - Data sources → four trained ML models
-  - Correlation rule → weighted vote + threshold
-  - Alert → EnsembleResult with severity grading
-
-The key difference from a commercial SIEM is that our models are trained
-on UNSW-NB15 and specialised for network intrusion detection. The
-correlation logic (voting.py, scoring.py) is identical in principle.
+-----------------------------------------
+Commercial SIEM engines (Splunk ES, IBM QRadar, Microsoft Sentinel) aggregate
+evidence from multiple sources and apply rule-based scoring to produce alerts.
+The EnsembleDetector is the ML analogue: four trained models serve as data
+sources, weighted voting replaces correlation rules, and EnsembleResult is
+the alert. The transparency principle is identical — every alert has a
+traceable, arithmetic cause.
 """
 
 from __future__ import annotations
@@ -82,32 +58,18 @@ class EnsembleDetector:
     """
     SIEM-style correlation engine aggregating four ML detectors.
 
-    Instantiate with four trained detectors, then call predict() to get
-    EnsembleResult objects or evaluate() to compute ensemble metrics.
+    Instantiate with four trained detectors, then call predict() or
+    evaluate(). Models are injected as dependencies so the ensemble layer
+    controls no I/O and is independently testable.
 
     Parameters
     ----------
     rf : RandomForestDetector
-        Trained Random Forest classifier (Phase 2).
     xgb : XGBoostDetector
-        Trained XGBoost classifier (Phase 2).
     iso : IsolationForestDetector
-        Trained Isolation Forest anomaly detector (Phase 3).
     ae : DenseAutoencoderDetector
-        Trained Dense Autoencoder anomaly detector (Phase 3).
     batch_size : int
-        Number of samples processed per batch. Reduce if memory-constrained.
-        Does not affect results — only throughput.
-
-    Design note — why hold model references?
-    -----------------------------------------
-    The EnsembleDetector keeps direct references to the four instantiated
-    models rather than file paths or class names. This means:
-      - The caller controls model instantiation and load-time (dependency
-        injection pattern) — EnsembleDetector is not responsible for I/O.
-      - Testing: any mock conforming to BaseDetector can be injected.
-      - Flexibility: models can be swapped at runtime (e.g., retrained RF)
-        without modifying EnsembleDetector.
+        Samples per inference batch. Affects throughput, not results.
     """
 
     def __init__(
@@ -124,15 +86,12 @@ class EnsembleDetector:
         self.ae  = ae
         self.batch_size = batch_size
 
-        # Ordered list of (model, name) for iteration
         self._detectors = [
             (self.rf,  "RandomForest"),
             (self.xgb, "XGBoost"),
             (self.iso, "IsolationForest"),
             (self.ae,  "DenseAutoencoder"),
         ]
-
-    # ── Predict ───────────────────────────────────────────────────────────────
 
     def predict(
         self,
@@ -144,53 +103,39 @@ class EnsembleDetector:
 
         Parameters
         ----------
-        X : np.ndarray shape (n_samples, n_features)
-            Feature matrix (float32, scaled) — same preprocessing as used
-            to train the individual models.
+        X : np.ndarray, shape (n_samples, n_features)
+            Float32 feature matrix, preprocessed identically to training data.
         timestamps : list[str], optional
-            ISO-8601 timestamps for each row. If None, the current UTC time
-            is used for all rows. Useful for notebook demos; in live SIEM
-            deployment the actual packet capture timestamp would be passed.
+            ISO-8601 timestamps per row. Defaults to current UTC for all rows.
 
         Returns
         -------
-        list[EnsembleResult] : length n_samples
+        list[EnsembleResult], length n_samples
         """
         n = len(X)
         now_ts = datetime.now(tz=timezone.utc).isoformat()
         if timestamps is None:
             timestamps = [now_ts] * n
 
-        logger.info(f"[Ensemble] Running inference on {n:,} samples …")
+        logger.info(f"[Ensemble] Running inference on {n:,} samples")
         t0 = time.time()
 
-        # --- Step 1: Collect all per-model predictions ----------------------
-        # Each model returns list[PredictionResult] of length n.
         all_preds: dict[str, list[PredictionResult]] = {}
         for model, name in self._detectors:
-            logger.debug(f"[Ensemble]   → {name}.predict({n} rows)")
+            logger.debug(f"[Ensemble]   {name}.predict({n} rows)")
             all_preds[name] = model.predict(X)
 
-        # --- Step 2: Assemble per-sample EnsembleResult ---------------------
         results: list[EnsembleResult] = []
         for i in range(n):
-            # Collect this sample's predictions from all four models
             row_preds = [all_preds[name][i] for _, name in self._detectors]
 
-            # Weighted voting
             w_score   = compute_weighted_attack_score(row_preds)
             verdict   = compute_verdict(w_score)
             agreement = compute_agreement_score(row_preds, verdict)
-
-            # Confidence and severity
             conf      = compute_confidence(w_score, verdict)
             severity  = compute_severity(verdict, conf, agreement)
-
-            # Category resolution
             cat       = resolve_attack_category(row_preds, verdict)
-
-            # Build audit trail
-            votes = build_model_votes(row_preds)
+            votes     = build_model_votes(row_preds)
 
             results.append(
                 EnsembleResult(
@@ -212,8 +157,6 @@ class EnsembleDetector:
         )
         return results
 
-    # ── Evaluate ──────────────────────────────────────────────────────────────
-
     def evaluate(
         self,
         X_test: np.ndarray,
@@ -224,21 +167,15 @@ class EnsembleDetector:
 
         Parameters
         ----------
-        X_test : np.ndarray (n_samples, n_features)
-        y_binary : np.ndarray (n_samples,)
+        X_test : np.ndarray, shape (n_samples, n_features)
+        y_binary : np.ndarray, shape (n_samples,)
             Ground-truth binary labels: 0 = normal, 1 = attack.
-            Derived from the 'label' column of the UNSW-NB15 test parquet.
 
         Returns
         -------
-        dict with keys (suitable for reports/ensemble_evaluation.json):
-            accuracy, precision, recall, f1, false_positive_rate,
-            confusion_matrix, confusion_matrix_labels,
-            tp, tn, fp, fn,
-            agreement_stats (dict: full/partial/split vote distributions),
-            severity_distribution (dict),
-            confidence_stats (mean, std, p25, p50, p75),
-            n_samples, n_attack, n_normal
+        dict with keys: accuracy, precision, recall, f1, false_positive_rate,
+        confusion_matrix, tp, tn, fp, fn, agreement_stats, severity_distribution,
+        confidence_stats, individual_model_comparison, n_samples, n_attack, n_normal.
         """
         from sklearn.metrics import (
             accuracy_score,
@@ -248,43 +185,34 @@ class EnsembleDetector:
             recall_score,
         )
 
-        logger.info(f"[Ensemble] Evaluating on {len(X_test):,} test samples …")
+        logger.info(f"[Ensemble] Evaluating on {len(X_test):,} test samples")
         results = self.predict(X_test)
 
-        # Binary predictions from ensemble
         y_pred_binary = np.array([
             1 if r.final_verdict == "ATTACK" else 0
             for r in results
         ])
 
-        # --- Core metrics ---------------------------------------------------
         acc  = round(float(accuracy_score(y_binary, y_pred_binary)), 4)
         prec = round(float(precision_score(y_binary, y_pred_binary, zero_division=0)), 4)
         rec  = round(float(recall_score(y_binary, y_pred_binary, zero_division=0)), 4)
         f1   = round(float(f1_score(y_binary, y_pred_binary, zero_division=0)), 4)
 
         from sklearn.metrics import confusion_matrix as sk_cm
-        cm   = sk_cm(y_binary, y_pred_binary, labels=[0, 1])
+        cm = sk_cm(y_binary, y_pred_binary, labels=[0, 1])
         tn, fp, fn, tp = int(cm[0,0]), int(cm[0,1]), int(cm[1,0]), int(cm[1,1])
         fpr = round(fp / (fp + tn), 6) if (fp + tn) > 0 else 0.0
 
-        # --- Agreement statistics -------------------------------------------
-        # Full agreement: all 4 models agree (agreement_score ∈ {0.15, 0.85, 1.0})
-        # In practice: agreement=1.0 → all 4 agree; agreement≥0.85 → 3+ agree
         agreement_scores = np.array([r.agreement_score for r in results])
-        full_agreement   = int((agreement_scores >= 0.99).sum())      # all 4 agree
-        high_agreement   = int(((agreement_scores >= 0.85) &
-                                (agreement_scores < 0.99)).sum())     # 3 agree
-        split_vote       = int(((agreement_scores >= 0.50) &
-                                (agreement_scores < 0.85)).sum())     # slim majority
-        low_agreement    = int((agreement_scores < 0.50).sum())       # minority verdict
+        full_agreement   = int((agreement_scores >= 0.99).sum())
+        high_agreement   = int(((agreement_scores >= 0.85) & (agreement_scores < 0.99)).sum())
+        split_vote       = int(((agreement_scores >= 0.50) & (agreement_scores < 0.85)).sum())
+        low_agreement    = int((agreement_scores < 0.50).sum())
 
-        # --- Severity distribution (ATTACK samples only) --------------------
         sev_counts: dict[str, int] = {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0, "N/A": 0}
         for r in results:
             sev_counts[r.severity] = sev_counts.get(r.severity, 0) + 1
 
-        # --- Confidence statistics -------------------------------------------
         confidences = np.array([r.confidence for r in results])
         conf_stats  = {
             "mean": round(float(confidences.mean()), 4),
@@ -294,7 +222,6 @@ class EnsembleDetector:
             "p75":  round(float(np.percentile(confidences, 75)), 4),
         }
 
-        # --- Individual model performance comparison ------------------------
         individual_metrics = self._compute_individual_metrics(
             results, y_binary, y_pred_binary
         )
@@ -304,7 +231,7 @@ class EnsembleDetector:
         n_normal  = n_samples - n_attack
 
         logger.info(
-            f"[Ensemble] Results: accuracy={acc}, precision={prec}, "
+            f"[Ensemble] accuracy={acc}, precision={prec}, "
             f"recall={rec}, f1={f1}, FPR={fpr}"
         )
 
@@ -316,20 +243,19 @@ class EnsembleDetector:
             "f1": f1,
             "false_positive_rate": fpr,
             "fpr_note": (
-                f"FPR = FP/(FP+TN) on binary normal-vs-attack. "
-                f"FP={fp}, TN={tn}. "
-                f"Means {fpr*100:.2f}% of normal traffic triggers a false alarm."
+                f"FPR = FP/(FP+TN). FP={fp}, TN={tn}. "
+                f"{fpr*100:.2f}% of normal traffic triggers a false alarm."
             ),
             "confusion_matrix": cm.tolist(),
             "confusion_matrix_labels": ["normal", "attack"],
             "tp": tp, "tn": tn, "fp": fp, "fn": fn,
             "agreement_stats": {
-                "full_agreement_all4":  full_agreement,
-                "high_agreement_3of4":  high_agreement,
-                "split_vote_slim_majority": split_vote,
-                "low_agreement_minority": low_agreement,
+                "full_agreement_all4":       full_agreement,
+                "high_agreement_3of4":       high_agreement,
+                "split_vote_slim_majority":  split_vote,
+                "low_agreement_minority":    low_agreement,
                 "mean_agreement": round(float(agreement_scores.mean()), 4),
-                "std_agreement":  round(float(agreement_scores.std()), 4),
+                "std_agreement":  round(float(agreement_scores.std()),  4),
             },
             "severity_distribution": sev_counts,
             "confidence_stats": conf_stats,
@@ -346,19 +272,21 @@ class EnsembleDetector:
         y_ensemble_pred: np.ndarray,
     ) -> dict:
         """
-        Extract per-model binary predictions from ModelVote records and
-        compute precision/recall/F1/FPR for each model individually.
-        Used in the evaluation report to compare ensemble vs each model.
+        Compute precision/recall/F1/FPR for each model individually.
+
+        Extracts per-model binary predictions from the ModelVote audit trail
+        embedded in each EnsembleResult. Also adds an 'Ensemble' entry for
+        side-by-side comparison.
 
         Parameters
         ----------
         results : list[EnsembleResult]
-        y_binary : np.ndarray — ground truth (0=normal, 1=attack)
+        y_binary : np.ndarray — ground truth
         y_ensemble_pred : np.ndarray — ensemble binary predictions
 
         Returns
         -------
-        dict keyed by model name, each containing precision/recall/f1/fpr
+        dict keyed by model name
         """
         from sklearn.metrics import (
             confusion_matrix as sk_cm,
@@ -367,7 +295,6 @@ class EnsembleDetector:
             recall_score,
         )
 
-        # Collect per-model binary predictions from vote audit trail
         model_preds: dict[str, list[int]] = {
             "RandomForest": [], "XGBoost": [],
             "IsolationForest": [], "DenseAutoencoder": [],
@@ -381,7 +308,7 @@ class EnsembleDetector:
         individual: dict[str, dict] = {}
         for name, preds in model_preds.items():
             y_pred = np.array(preds)
-            cm   = sk_cm(y_binary, y_pred, labels=[0, 1])
+            cm     = sk_cm(y_binary, y_pred, labels=[0, 1])
             tn_m, fp_m = int(cm[0,0]), int(cm[0,1])
             fpr_m = round(fp_m / (fp_m + tn_m), 6) if (fp_m + tn_m) > 0 else 0.0
             individual[name] = {
@@ -391,7 +318,6 @@ class EnsembleDetector:
                 "false_positive_rate": fpr_m,
             }
 
-        # Add ensemble entry for side-by-side comparison
         cm_ens = sk_cm(y_binary, y_ensemble_pred, labels=[0, 1])
         tn_e, fp_e = int(cm_ens[0,0]), int(cm_ens[0,1])
         individual["Ensemble"] = {
@@ -401,8 +327,6 @@ class EnsembleDetector:
             "false_positive_rate": round(fp_e / (fp_e + tn_e), 6) if (fp_e + tn_e) > 0 else 0.0,
         }
         return individual
-
-    # ── Convenience: load all four models from standard paths ─────────────────
 
     @classmethod
     def from_disk(
@@ -414,8 +338,7 @@ class EnsembleDetector:
         batch_size: int = 2048,
     ) -> "EnsembleDetector":
         """
-        Convenience factory: load all four models from disk and return a
-        ready-to-use EnsembleDetector.
+        Load all four models from disk and return a ready-to-use EnsembleDetector.
 
         Parameters
         ----------
@@ -427,20 +350,11 @@ class EnsembleDetector:
         Returns
         -------
         EnsembleDetector
-
-        Example
-        -------
-        >>> ensemble = EnsembleDetector.from_disk(
-        ...     rf_path  = Path("data/models/rf_detector.joblib"),
-        ...     xgb_path = Path("data/models/xgb_detector.joblib"),
-        ...     iso_path = Path("models/isolation_forest.joblib"),
-        ...     ae_path  = Path("models/autoencoder.pt"),
-        ... )
         """
-        logger.info("[Ensemble] Loading all four models from disk …")
+        logger.info("[Ensemble] Loading all four models from disk")
         rf  = RandomForestDetector.load_model(rf_path)
         xgb = XGBoostDetector.load_model(xgb_path)
         iso = IsolationForestDetector.load_model(iso_path)
         ae  = DenseAutoencoderDetector.load_model(ae_path)
-        logger.info("[Ensemble] All models loaded.")
+        logger.info("[Ensemble] All models loaded")
         return cls(rf=rf, xgb=xgb, iso=iso, ae=ae, batch_size=batch_size)

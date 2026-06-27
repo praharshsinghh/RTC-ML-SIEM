@@ -1,48 +1,30 @@
 """
-src/models/isolation_forest.py — Isolation Forest Detector
-===========================================================
-Unsupervised anomaly detector trained ONLY on normal (benign) traffic.
+src/models/isolation_forest.py
+===============================
+Unsupervised anomaly detector trained on normal-only traffic.
 
 Design decisions
 ----------------
-**Why train only on normal traffic?**
-    Isolation Forest (and all unsupervised anomaly detectors) learn a model of
-    "what normal looks like."  During inference, any sample that deviates
-    significantly from that normal model is flagged as anomalous.
-    If we trained on a mix of normal + attack traffic the model would learn a
-    blended distribution, making attacks harder to distinguish.  Training
-    exclusively on normal samples forces the decision boundary around genuine
-    normal behaviour — a classic one-class classification strategy.
+Training on normal traffic only: Isolation Forest learns a model of normal
+behaviour. Training on mixed normal + attack data blends the distributions,
+making anomalies harder to isolate. Normal-only training is standard for
+one-class classification in intrusion detection.
 
-**Why Isolation Forest for network flows?**
-    Network intrusion data is tabular, high-dimensional (43 features), and
-    dominated by normal traffic.  Isolation Forest handles this natively:
-    - It builds random binary trees that *isolate* individual observations.
-    - Anomalies are isolated near the root of the tree (short path length)
-      because they lie in sparse, extreme regions of feature space.
-    - It scales well to millions of rows (O(n log n)) and is robust to the
-      high class imbalance present in UNSW-NB15.
-    - Unlike k-NN or LOF, it does not require computing pairwise distances,
-      making it orders of magnitude faster on large datasets.
+Why Isolation Forest for network flows: tabular, high-dimensional (43 features),
+dominated by normal traffic. IF isolates anomalies near the root of random
+binary trees (short path length = anomalous). It scales to millions of rows
+O(n log n) and requires no pairwise distance computation.
 
-**Why percentile thresholding at the 95th percentile?**
-    After training, we compute anomaly scores on the normal training data.
-    Setting the threshold at the 95th percentile means:
-      - 95% of KNOWN normal traffic scores below the threshold  → not flagged
-      - 5% of known normal traffic is considered "unusually anomalous" →
-        accepted false-positive budget on training data
-    This is a principled, data-driven approach that does NOT require any
-    labelled attack samples during threshold selection, preserving the
-    unsupervised nature of the detector.  The value 95 can be tuned to
-    trade off recall (detecting attacks) vs. FPR (false alarms on benign
-    traffic); this is documented explicitly for viva defence.
+Percentile thresholding: after fitting, anomaly scores are computed on the
+normal training data. The threshold is the Nth percentile of those scores.
+At the default N=95, 95% of known normal traffic scores below the threshold;
+the remaining 5% represents the accepted false-positive budget on training data.
+This approach is fully unsupervised — no labelled attack samples are needed
+for threshold calibration.
 
-**Why -score_samples() for the anomaly score?**
-    sklearn's IsolationForest.score_samples() returns the negative anomaly
-    score (more negative = more anomalous). We negate it so that HIGHER
-    values indicate MORE anomalous samples — a convention consistent with
-    reconstruction error (Autoencoder) and probability-based scores:
-        anomaly_score = -model.score_samples(X)
+Anomalous score convention: sklearn's score_samples() returns negative anomaly
+scores. We negate them so higher values indicate more anomalous samples,
+matching the convention used by the Autoencoder (reconstruction error).
 """
 
 from __future__ import annotations
@@ -159,14 +141,9 @@ class IsolationForestDetector(BaseDetector):
         )
         self._model.fit(X_train)
 
-        # ── Threshold selection ────────────────────────────────────────────────
-        # Compute anomaly scores on the same normal training data used to fit.
-        # The threshold is the Nth percentile of these scores, meaning the top
-        # (100 - N)% most unusual known-normal samples define the alarm boundary.
-        # The threshold represents the top 5% most unusual observations among
-        # known normal traffic.
+        # Set threshold from training anomaly scores (no labels needed).
         raw_scores = self._model.score_samples(X_train)
-        anomaly_scores = -raw_scores                       # higher = more anomalous
+        anomaly_scores = -raw_scores  # higher = more anomalous
         self._threshold = float(np.percentile(anomaly_scores, self.threshold_percentile))
 
         logger.info(

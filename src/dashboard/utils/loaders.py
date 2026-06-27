@@ -42,7 +42,7 @@ DEFAULT_TEST_PARQUET = _ROOT / "data" / "processed" / "test.parquet"
 DEFAULT_FEATURE_LIST = _ROOT / "data" / "processed" / "feature_list.txt"
 
 
-@st.cache_resource(show_spinner="⚙️ Loading detection pipeline…")
+@st.cache_resource(show_spinner="Loading detection pipeline...")
 def get_pipeline():
     """
     Load and cache the ThreatDetectionPipeline singleton.
@@ -57,7 +57,7 @@ def get_pipeline():
     return pipeline
 
 
-@st.cache_data(show_spinner="📂 Loading dataset preview…")
+@st.cache_data(show_spinner="Loading dataset preview...")
 def load_parquet_preview(path: str, n_rows: int = 5000) -> pd.DataFrame:
     """Return the first n_rows of a parquet file for display purposes only."""
     return pd.read_parquet(path).head(n_rows)

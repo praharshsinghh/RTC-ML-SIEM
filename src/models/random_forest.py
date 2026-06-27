@@ -1,34 +1,24 @@
 """
-src/models/random_forest.py — Random Forest Detector
-======================================================
-Multiclass supervised detector trained on UNSW-NB15 attack_cat labels.
+src/models/random_forest.py
+============================
+Random Forest multiclass detector for UNSW-NB15 attack categories.
 
 Design decisions
 ----------------
-**Why class_weight='balanced'?**
-    UNSW-NB15 is severely imbalanced: Normal (unknown) ≈ 1.775M samples,
-    Worms ≈ 139 samples in train — a ratio of ~12,000:1. Without reweighting
-    the classifier has no incentive to learn Worms at all; it maximises accuracy
-    by ignoring the minority. 'balanced' makes sklearn reweight each class by
-    n_samples / (n_classes * class_count), effectively amplifying the gradient
-    signal from Worms and Shellcode during tree splitting.
+class_weight='balanced': UNSW-NB15 is severely imbalanced
+(Normal ~1.775M samples, Worms ~139 in train). Without reweighting the
+classifier maximises accuracy by ignoring minority classes. 'balanced'
+applies sklearn's n_samples / (n_classes * class_count) reweighting.
 
-**Why FPR over accuracy in a SIEM context?**
-    A SIEM analyst investigates every alert. False Positives (normal traffic
-    flagged as attack) waste analyst time and cause alert fatigue. FPR =
-    FP / (FP + TN) directly quantifies "what fraction of benign connections
-    trigger a false alarm?" — a 1% FPR on 1.4M normal connections means 14,000
-    spurious tickets per day, which is operationally unacceptable.
-    Overall accuracy is useless here: a model that labels everything as
-    Normal achieves 87%+ accuracy while detecting zero attacks.
+FPR as primary evaluation metric: a SIEM analyst investigates every alert.
+False positives waste analyst time and cause alert fatigue. FPR =
+FP / (FP + TN) quantifies the fraction of benign connections that trigger
+false alarms. Overall accuracy is misleading here; a model that labels
+everything as Normal achieves 87%+ accuracy with zero attack detection.
 
-**Why RF feature importances are impurity-based (and their limits)?**
-    sklearn RandomForest uses mean decrease in Gini impurity across all trees.
-    This tends to inflate the importance of high-cardinality numeric features
-    (e.g., sport, dsport which can take thousands of values) simply because they
-    offer more split points. It does NOT measure causation. Treat it as a
-    coarse signal for feature selection, not a definitive ranking. For a more
-    reliable ranking, use permutation importance or SHAP (post-hoc).
+Impurity-based feature importance: mean decrease in Gini impurity tends to
+inflate the importance of high-cardinality numeric features (e.g., sport,
+dsport). Use SHAP or permutation importance for reliable production rankings.
 """
 
 from __future__ import annotations

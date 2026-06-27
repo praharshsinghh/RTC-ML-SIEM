@@ -1,52 +1,19 @@
 """
-src/ensemble/voting.py — Transparent Weighted Voting Engine
-============================================================
-Implements the core aggregation logic of the ensemble layer.
-No black-box meta-model, no stacking, no blending — purely
-arithmetic aggregation with documented rules at each step.
+src/ensemble/voting.py
+=======================
+Transparent weighted voting engine for the ensemble layer.
 
-How the voting engine works (step-by-step)
-------------------------------------------
-Input: one PredictionResult from each of the four detectors.
+All aggregation is purely arithmetic — no stacking, no meta-learner.
+Every decision can be verified by hand from the model weights and votes.
 
-Step 1 — Binary vote extraction
-    Each model's output is mapped to a binary vote:
-    is_anomaly=True  → ATTACK vote (1)
-    is_anomaly=False → NORMAL vote (0)
-
-Step 2 — Weighted attack score
-    weighted_attack_score = Σ(weight_i × attack_vote_i)
-    Weights: RF=0.35, XGB=0.35, IF=0.15, AE=0.15
-
-Step 3 — Final verdict
-    score >= ATTACK_THRESHOLD (0.50) → ATTACK
-    score <  ATTACK_THRESHOLD        → NORMAL
-
-Step 4 — Agreement score
-    Computed as the sum of weights of models that AGREE with the
-    final verdict. Range [0,1]. Full agreement = 1.0.
-
-Step 5 — Category resolution
-    See _resolve_attack_cat() below.
-
-Step 6 — Confidence
-    Derived from the weighted_attack_score (see scoring.py).
-
-Why this is SIEM-defensible
----------------------------
-Every number in the output can be traced back to an arithmetic
-formula applied to model outputs. There is no hidden optimisation,
-no gradient-computed combination weight — just a transparent rule
-table that can be printed on a whiteboard and explained in 60 seconds.
-
-Comparison to production SIEM correlation engines
---------------------------------------------------
-Splunk ES and IBM QRadar use "correlation rules" — explicit logical
-conditions over data sources. Our weighted voting is the ML analogue:
-instead of "IF port_scan AND failed_login" we compute
-"weighted evidence score from multiple anomaly detectors."
-The transparency principle is the same: every alert has a traceable
-reason. This is what separates a SIEM from a black-box classifier.
+Voting steps
+------------
+1. Map each model's is_anomaly flag to a binary attack vote (0 or 1).
+2. Compute weighted_attack_score = Σ(weight_i × vote_i).
+3. Apply threshold: score >= 0.50 → ATTACK, else NORMAL.
+4. Compute agreement_score = sum of weights for models matching the verdict.
+5. Resolve the final attack category (see resolve_attack_category).
+6. Confidence is derived from the score in scoring.py.
 """
 
 from __future__ import annotations

@@ -1,55 +1,25 @@
 """
-src/ensemble/scoring.py — Confidence & Severity Calculation
-============================================================
-Translates the continuous weighted_attack_score and agreement_score
-into human-readable SIEM output: a [0,1] confidence value and a
-SOC-priority severity band.
+src/ensemble/scoring.py
+========================
+Confidence and severity calculation for the ensemble output.
 
-Design philosophy — rule-based transparency
--------------------------------------------
-These functions use explicit if/elif rule tables, NOT learned functions.
-This is a deliberate design choice:
+Both functions use explicit rule tables rather than learned functions,
+ensuring that every severity assignment is auditable and tunable without
+model retraining.
 
-  1. Explainability: An analyst can read the severity table and immediately
-     understand why a particular alert was graded HIGH vs CRITICAL. There
-     is no "because the neural network said so."
-
-  2. Auditability: Security policies typically mandate explainable alert
-     prioritisation (e.g. PCI-DSS, ISO 27001 log management clauses).
-     Rule-based grading satisfies this requirement; a black-box grader
-     would not.
-
-  3. Tuneability: Threshold adjustments are one-line edits visible in
-     source control, not model retraining events.
-
-  4. Viva defence: "Our severity grading mirrors SOC SLA playbooks where
-     CRITICAL alerts require sub-15-minute response and LOW alerts are
-     queued for weekly review."
-
-Severity Bands (SOC-aligned)
------------------------------
-  CRITICAL : confidence ≥ 0.85 AND agreement ≥ 0.85
-             → near-unanimous high-confidence attack; escalate immediately
-  HIGH     : confidence ≥ 0.70 AND agreement ≥ 0.70
-             → strong evidence; assign to Tier-2 analyst within 1 hour
-  MEDIUM   : confidence ≥ 0.50 AND agreement ≥ 0.50
-             → moderate evidence; queue for Tier-1 triage within 4 hours
-  LOW      : any other ATTACK verdict
-             → weak or borderline evidence; include in daily threat report
-  (NORMAL traffic never receives a severity band — field is 'N/A')
-
-Confidence Derivation
+Confidence derivation
 ---------------------
-The ensemble confidence mirrors the distance of the weighted_attack_score
-from the decision boundary (0.50):
-  - For ATTACK verdicts: confidence = 2 × score − 1  (linear in [0,1])
-  - For NORMAL verdicts: confidence = 1 − 2 × score  (linear in [0,1])
-  Both formulae produce 0.0 at the boundary and 1.0 at the extremes.
+Linear re-scaling of the distance from the 0.50 decision boundary:
+  ATTACK: confidence = 2 × score − 1   (0.0 at boundary, 1.0 unanimous)
+  NORMAL: confidence = 1 − 2 × score   (0.0 at boundary, 1.0 unanimous)
 
-This linear mapping is intentional — it is monotonic, interpretable, and
-avoids the distribution assumptions that a sigmoid or softmax would impose.
-A confidence of 0.80 literally means the ensemble score is 0.90 on a 0-1
-scale (0.20 above the 0.50 midpoint on a [0.5,1.0] attack scale).
+Severity bands
+--------------
+  CRITICAL : confidence >= 0.85 AND agreement >= 0.85
+  HIGH     : confidence >= 0.70 AND agreement >= 0.70
+  MEDIUM   : confidence >= 0.50 AND agreement >= 0.50
+  LOW      : any other ATTACK verdict
+  N/A      : NORMAL verdicts
 """
 
 from __future__ import annotations

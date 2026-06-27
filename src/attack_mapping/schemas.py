@@ -1,28 +1,16 @@
 """
-src/attack_mapping/schemas.py — ATT&CK Enrichment Data Schemas
-================================================================
-Defines the data contracts for the MITRE ATT&CK enrichment layer.
-All structs are plain Python dataclasses (stdlib only) — transparent,
-serialisable, and viva-defensible without external schema libraries.
+src/attack_mapping/schemas.py
+==============================
+Data contracts for the MITRE ATT&CK enrichment layer.
 
-Design principle
-----------------
-Each schema is a separate concern:
-  AttackTechnique  — represents one ATT&CK technique record
-  AttackTactic     — represents one ATT&CK tactic
-  EnrichedIncident — the final output combining ensemble + ATT&CK context
+All types are plain Python dataclasses for transparent, dependency-free
+serialization. to_dict() on each dataclass produces clean, JSON-safe output.
 
-The EnrichedIncident is the primary output fed to Phase 6 (reporting).
-It is intentionally self-contained: every field a SOC analyst or incident
-responder needs is present in a single flat-ish structure.
-
-Viva defence
-------------
-"We use dataclasses rather than Pydantic here because the schema is
-static and small. The to_dict() pattern ensures consistent JSON
-serialisation without runtime schema overhead. For a production system
-ingesting external data with validation requirements, Pydantic would be
-preferable."
+Schemas
+-------
+AttackTactic     — a single ATT&CK tactic (the *why* of an attack stage)
+AttackTechnique  — a single ATT&CK technique (the *how*)
+EnrichedIncident — Phase 4 ensemble output combined with ATT&CK context
 """
 
 from __future__ import annotations

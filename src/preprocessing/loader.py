@@ -1,35 +1,24 @@
 """
-UNSW-NB15 Data Loader
-======================
-Responsibilities:
-  - Load one or more raw CSV partitions (or Kaggle pre-split train/test CSVs)
-  - Assign canonical column names from the features CSV
-  - Validate schema and basic data integrity
-  - Expose a clean DataFrame for the preprocessing pipeline
+src/preprocessing/loader.py
+============================
+UNSW-NB15 data loader.
 
-Design note:
-  We keep loading separate from cleaning so each step is independently testable
-  and re-runnable (important for reproducibility in academic projects).
+Responsibilities
+----------------
+- Load raw CSV partitions (1–4) or Kaggle pre-split train/test CSVs
+- Assign canonical column names from the dataset paper
+- Coerce mixed-type port columns (sport, dsport) to int64
+- Validate schema and basic data integrity
 
-Bug-fix note (sport / dsport mixed types):
-  The raw UNSW-NB15 CSVs contain mixed values in sport and dsport:
-    - Decimal integers (e.g. 80)
-    - Hex strings  (e.g. '0x0050')
-    - Service names (e.g. 'http', 'ftp-data')
-    - Empty / NaN cells
-  Because of this mix, pandas reads both columns as dtype=object, which
-  PyArrow refuses to serialise to Parquet.
+The raw UNSW-NB15 CSVs contain mixed values in sport and dsport:
+  - Decimal integers (e.g., 80)
+  - Hex strings (e.g., '0x0050')
+  - Service names (e.g., 'http', 'ftp-data')
+  - Empty / NaN cells
 
-  Fix applied here (in _coerce_port_columns):
-    1. Hex strings → int via base-16 parsing
-    2. Everything else → pd.to_numeric(..., errors='coerce') → NaN for
-       non-convertible strings
-    3. NaN → 0  (port 0 is the conventional "unknown" sentinel in UNSW-NB15)
-    4. Cast to int64 so the column has a definite numeric dtype
-
-  Doing this in the loader (rather than the cleaner) keeps it close to the
-  source of the problem and means validate_schema() can report the corrected
-  dtypes immediately.
+pandas reads both columns as object dtype, which PyArrow rejects during
+Parquet serialisation. _coerce_port_columns() normalises them to int64
+immediately after loading, before any other processing.
 """
 
 import logging
@@ -41,12 +30,9 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-# ─── Column definitions ─────────────────────────────────────────────────────────
-# UNSW-NB15 has 49 features. The raw CSVs have NO header row in some versions.
-# This is the canonical ordered feature list from the dataset paper:
-#   Moustafa & Slay (2015), "UNSW-NB15: a comprehensive data set for
-#   network intrusion detection systems"
-
+# ── Column definitions ──────────────────────────────────────────────────────────
+# Canonical ordered feature list from Moustafa & Slay (2015).
+# The raw CSV files have no header row in some versions.
 COLUMN_NAMES = [
     "srcip", "sport", "dstip", "dsport", "proto",           # 1–5
     "state", "dur", "sbytes", "dbytes", "sttl",              # 6–10
@@ -59,11 +45,10 @@ COLUMN_NAMES = [
     "is_ftp_login", "ct_ftp_cmd", "ct_srv_src",              # 39–41
     "ct_srv_dst", "ct_dst_ltm", "ct_src_ltm",                # 42–44
     "ct_src_dport_ltm", "ct_dst_sport_ltm", "ct_dst_src_ltm", # 45–47
-    "attack_cat",                                              # 48  ← label (category)
-    "label",                                                   # 49  ← binary (0=normal, 1=attack)
+    "attack_cat",                                              # 48
+    "label",                                                   # 49
 ]
 
-# Attack categories present in the dataset (canonical, normalised forms)
 ATTACK_CATEGORIES = [
     "Normal",
     "Fuzzers",
@@ -77,31 +62,23 @@ ATTACK_CATEGORIES = [
     "Worms",
 ]
 
-# Columns whose values may be hex strings or service names in the raw CSVs.
-# These must be coerced to int before Parquet serialisation.
+# Columns with mixed types in the raw CSVs that must be coerced to int64.
 PORT_COLUMNS = ["sport", "dsport"]
 
 DATA_DIR = Path(__file__).parent.parent.parent / "data"
-RAW_DIR = DATA_DIR / "raw"
+RAW_DIR  = DATA_DIR / "raw"
 
 
-# ─── Port coercion helper ────────────────────────────────────────────────────────
+# ── Port coercion ───────────────────────────────────────────────────────────────
 
 def _parse_port_value(val) -> int:
     """
-    Parse a single port value that may be:
-      - An int already          → return as-is
-      - A hex string '0x0050'   → parse with base 16
-      - A decimal string '80'   → parse normally
-      - A service name 'http'   → return 0 (unmappable; treated as unknown)
-      - NaN / None              → return 0
+    Parse a single port value that may be an integer, hex string, decimal
+    string, service name, or NaN.
 
-    Why return 0 for service names rather than a lookup table?
-    The cleaner already drops these columns' raw string content in favour of
-    the encoded 'service' feature column, so port numbers are used only as
-    numeric signals (high port → ephemeral, low port → well-known service).
-    Mapping 'http' → 80 would be redundant with the 'service' column and
-    would add complexity without measurable benefit to the models.
+    Service names (e.g., 'http') map to 0 rather than a port-number lookup
+    table, because port numbers are redundant with the encoded 'service'
+    feature column.
     """
     if val is None or (isinstance(val, float) and np.isnan(val)):
         return 0
@@ -111,34 +88,28 @@ def _parse_port_value(val) -> int:
     if not s or s.lower() in ("nan", "none", "-", ""):
         return 0
     try:
-        # Try hex first (e.g. '0x0050', '0X50')
         if s.lower().startswith("0x"):
             return int(s, 16)
-        # Try plain integer / float-as-string (e.g. '80', '80.0')
         return int(float(s))
     except (ValueError, OverflowError):
-        # Non-numeric service name (e.g. 'http', 'ftp-data') → 0
         return 0
 
 
 def _coerce_port_columns(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Apply _parse_port_value to sport and dsport and cast to int64.
+    Normalise sport and dsport to int64.
 
-    This is the root-cause fix for the Parquet serialisation failure.
-    PyArrow requires columns to have a single unambiguous dtype; an object
-    column containing both Python ints and strings raises ArrowTypeError.
-    After this function both port columns are dtype=int64.
+    Fast path: numeric dtype → fill NaN with 0, cast.
+    Slow path: object dtype → apply _parse_port_value element-wise.
     """
     df = df.copy()
     for col in PORT_COLUMNS:
         if col not in df.columns:
             continue
-        # Fast path: already numeric (happens for Kaggle pre-split CSVs)
         if pd.api.types.is_integer_dtype(df[col]) or pd.api.types.is_float_dtype(df[col]):
             df[col] = df[col].fillna(0).astype(np.int64)
             continue
-        # Slow path: object dtype – apply element-wise parser
+        # Object dtype — apply element-wise parser
         original_non_numeric = df[col].apply(
             lambda x: not isinstance(x, (int, float, np.integer, np.floating))
                       and str(x).strip().lower() not in ("nan", "none", "")
@@ -155,7 +126,7 @@ def _coerce_port_columns(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-# ─── Loaders ────────────────────────────────────────────────────────────────────
+# ── Loaders ─────────────────────────────────────────────────────────────────────
 
 def load_raw_partitions(
     raw_dir: Optional[Path] = None,
@@ -169,14 +140,14 @@ def load_raw_partitions(
     raw_dir : Path, optional
         Directory containing UNSW-NB15_*.csv files. Defaults to data/raw/.
     partitions : list[int], optional
-        Which partition numbers to load (1–4). Defaults to all four.
+        Partition numbers to load (1–4). Defaults to all four.
 
     Returns
     -------
     pd.DataFrame with canonical column names and coerced port columns,
-    shape ~ (2.5M, 49+1).
+    shape approximately (2.5M, 50).
     """
-    raw_dir = raw_dir or RAW_DIR
+    raw_dir    = raw_dir    or RAW_DIR
     partitions = partitions or [1, 2, 3, 4]
 
     dfs = []
@@ -187,8 +158,6 @@ def load_raw_partitions(
             continue
 
         logger.info(f"Loading partition {i}: {path}")
-        # The raw files have no header; we assign COLUMN_NAMES explicitly.
-        # low_memory=False avoids spurious mixed-type warnings on object columns.
         df = pd.read_csv(
             path,
             header=None,
@@ -197,10 +166,7 @@ def load_raw_partitions(
             on_bad_lines="warn",
         )
         df["_source_partition"] = i
-
-        # ── Fix: coerce port columns immediately after loading ─────────────────
         df = _coerce_port_columns(df)
-
         dfs.append(df)
         logger.info(f"  Loaded {len(df):,} rows")
 
@@ -218,16 +184,17 @@ def load_raw_partitions(
 def load_kaggle_splits(raw_dir: Optional[Path] = None) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     Load pre-split train/test CSVs from the Kaggle version of UNSW-NB15.
-    The Kaggle version already has headers and uses slightly different column casing.
+
+    The Kaggle version includes column headers and uses slightly different
+    casing. Columns are normalised to COLUMN_NAMES casing.
 
     Returns
     -------
-    (train_df, test_df) — both with columns normalized to COLUMN_NAMES casing
-    and port columns coerced to int64.
+    (train_df, test_df) — both with coerced port columns.
     """
-    raw_dir = raw_dir or RAW_DIR
+    raw_dir    = raw_dir or RAW_DIR
     train_path = raw_dir / "UNSW_NB15_training-set.csv"
-    test_path = raw_dir / "UNSW_NB15_testing-set.csv"
+    test_path  = raw_dir / "UNSW_NB15_testing-set.csv"
 
     missing = [p for p in [train_path, test_path] if not p.exists()]
     if missing:
@@ -237,15 +204,13 @@ def load_kaggle_splits(raw_dir: Optional[Path] = None) -> tuple[pd.DataFrame, pd
         )
 
     train_df = pd.read_csv(train_path, low_memory=False)
-    test_df = pd.read_csv(test_path, low_memory=False)
+    test_df  = pd.read_csv(test_path,  low_memory=False)
 
-    # Normalize column names: lowercase + strip whitespace
     for df in [train_df, test_df]:
         df.columns = df.columns.str.strip().str.lower()
 
-    # ── Fix: coerce port columns for Kaggle format too ─────────────────────────
     train_df = _coerce_port_columns(train_df)
-    test_df = _coerce_port_columns(test_df)
+    test_df  = _coerce_port_columns(test_df)
 
     logger.info(f"Kaggle train: {train_df.shape}, test: {test_df.shape}")
     return train_df, test_df
@@ -253,23 +218,22 @@ def load_kaggle_splits(raw_dir: Optional[Path] = None) -> tuple[pd.DataFrame, pd
 
 def auto_load(raw_dir: Optional[Path] = None) -> Union[pd.DataFrame, tuple]:
     """
-    Convenience function: detects which file format is present and loads accordingly.
+    Auto-detect the dataset format and load accordingly.
+
     Priority: Kaggle pre-split → raw partitions.
 
     Returns
     -------
-    If Kaggle format detected: (train_df, test_df)
-    If raw partitions detected: combined_df (you'll split later in preprocessing)
+    tuple[pd.DataFrame, pd.DataFrame]  if Kaggle format detected
+    pd.DataFrame                        if raw partition format detected
     """
     raw_dir = raw_dir or RAW_DIR
 
-    kaggle_train = raw_dir / "UNSW_NB15_training-set.csv"
-    if kaggle_train.exists():
+    if (raw_dir / "UNSW_NB15_training-set.csv").exists():
         logger.info("Detected Kaggle pre-split format.")
         return load_kaggle_splits(raw_dir)
 
-    partition_1 = raw_dir / "UNSW-NB15_1.csv"
-    if partition_1.exists():
+    if (raw_dir / "UNSW-NB15_1.csv").exists():
         logger.info("Detected raw partition format.")
         return load_raw_partitions(raw_dir)
 
@@ -279,18 +243,22 @@ def auto_load(raw_dir: Optional[Path] = None) -> Union[pd.DataFrame, tuple]:
     )
 
 
-# ─── Schema validation ───────────────────────────────────────────────────────────
+# ── Schema validation ────────────────────────────────────────────────────────────
 
 def validate_schema(df: pd.DataFrame) -> dict:
     """
-    Quick integrity check on a loaded DataFrame.
-    Returns a dict of validation results for inspection.
+    Run a basic integrity check on a loaded DataFrame.
 
-    Now includes an 'object_columns' entry that lists any remaining object-dtype
-    columns and their sample values — used to catch future mixed-type surprises
-    before they reach Parquet serialisation.
+    Parameters
+    ----------
+    df : pd.DataFrame
+
+    Returns
+    -------
+    dict with keys: shape, missing_columns, null_counts,
+    object_columns_outside_expected, attack_cat_distribution,
+    label_distribution, duplicate_rows.
     """
-    # Find object columns that are NOT the known string targets
     allowed_object_cols = {"attack_cat", "proto", "state", "service"}
     object_cols = {
         col: df[col].dropna().unique()[:5].tolist()
@@ -298,24 +266,21 @@ def validate_schema(df: pd.DataFrame) -> dict:
         if col not in allowed_object_cols
     }
 
-    results = {
+    return {
         "shape": df.shape,
         "missing_columns": [c for c in COLUMN_NAMES if c not in df.columns],
         "null_counts": df.isnull().sum()[df.isnull().sum() > 0].to_dict(),
-        "object_columns_outside_expected": object_cols,   # ← new: debug audit
+        "object_columns_outside_expected": object_cols,
         "attack_cat_distribution": (
             df["attack_cat"].value_counts().to_dict()
-            if "attack_cat" in df.columns
-            else "N/A"
+            if "attack_cat" in df.columns else "N/A"
         ),
         "label_distribution": (
             df["label"].value_counts().to_dict()
-            if "label" in df.columns
-            else "N/A"
+            if "label" in df.columns else "N/A"
         ),
         "duplicate_rows": int(df.duplicated().sum()),
     }
-    return results
 
 
 if __name__ == "__main__":
@@ -336,7 +301,6 @@ if __name__ == "__main__":
         for k, v in validate_schema(test_df).items():
             print(f"  {k}: {v}")
     else:
-        df = data
         print("\n[Combined dataset]")
-        for k, v in validate_schema(df).items():
+        for k, v in validate_schema(data).items():
             print(f"  {k}: {v}")

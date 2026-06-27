@@ -36,7 +36,7 @@ def main() -> int:
     args = parser.parse_args()
 
     if not _APP.exists():
-        print(f"❌ Dashboard entry point not found: {_APP}", file=sys.stderr)
+        print(f"Error: Dashboard entry point not found: {_APP}", file=sys.stderr)
         return 1
 
     cmd = [
@@ -46,7 +46,7 @@ def main() -> int:
         "--theme.base", "dark",
     ]
 
-    print(f"🛡️  RTC SIEM Dashboard")
+    print(f"RTC SIEM Dashboard")
     print(f"    URL  : http://localhost:{args.port}")
     print(f"    Entry: {_APP.relative_to(Path.cwd())}")
     print(f"    Press Ctrl+C to stop.\n")
@@ -54,7 +54,7 @@ def main() -> int:
     try:
         return subprocess.call(cmd)
     except KeyboardInterrupt:
-        print("\n👋 Dashboard stopped.")
+        print("\nDashboard stopped.")
         return 0
 
 
