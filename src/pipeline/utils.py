@@ -157,11 +157,9 @@ def align_features(
             f"filling with 0: {missing[:10]}{'…' if len(missing) > 10 else ''}"
         )
 
-    aligned = pd.DataFrame(index=df.index)
-    for col in feature_cols:
-        aligned[col] = df[col] if col in df.columns else 0.0
-
-    return aligned.values.astype(np.float32)
+    # reindex selects + reorders columns in one C-level operation, filling any
+    # missing columns with 0.0 — significantly faster than the column-by-column loop.
+    return df.reindex(columns=feature_cols, fill_value=0.0).values.astype(np.float32)
 
 
 def format_agreement(agreement_score: float, n_models: int = _N_MODELS) -> str:

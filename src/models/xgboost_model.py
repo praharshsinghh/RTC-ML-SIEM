@@ -159,7 +159,6 @@ class XGBoostDetector(BaseDetector):
             objective="multi:softprob",
             num_class=len(self._classes),
             eval_metric=self.eval_metric,
-            use_label_encoder=False,
             random_state=self.random_state,
             n_jobs=self.n_jobs,
             verbosity=0,

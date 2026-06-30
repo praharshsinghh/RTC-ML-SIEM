@@ -224,12 +224,17 @@ read from session state without re-triggering inference.
   for high-cardinality features; use SHAP for production decisions)
 
 ### XGBoost
-- Multiclass with `scale_pos_weight` per class for imbalance handling
-- `eval_metric='mlogloss'`, early stopping on validation set
+- `n_estimators=200`, `max_depth=6`, `learning_rate=0.1`, `eval_metric='mlogloss'`
+- Class imbalance handled via `compute_sample_weight('balanced')` from scikit-learn,
+  passed as `sample_weight` to `.fit()` — the XGBoost-appropriate substitute for RF's
+  `class_weight='balanced'`
+- No early stopping; trains for the full 200 rounds (dataset is large enough that
+  overfitting is not a concern at this depth)
 
 ### Isolation Forest
 - Trained on normal-only traffic (`train_normal_only.parquet`)
-- `contamination=0.05` (tuned on validation FPR)
+- `n_estimators=300`, `contamination='auto'` (sklearn default)
+- Anomaly threshold set at the 95th percentile of training normal-traffic scores
 
 ### Dense Autoencoder
 - PyTorch feedforward encoder-decoder trained on normal-only traffic

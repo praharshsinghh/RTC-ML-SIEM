@@ -80,7 +80,7 @@ phases = [
      "Produces cleaner.joblib and feature_list.txt.",
      "#00d4ff"),
     ("2", "Supervised Detection",
-     "Random Forest (500 trees, class_weight='balanced') and XGBoost (multiclass softmax, "
+     "Random Forest (200 trees, class_weight='balanced', min_samples_leaf=2) and XGBoost (multiclass softmax, "
      "balanced sample weights). Trained on 2M+ labelled flows.",
      "#ff6b00"),
     ("3", "Unsupervised Anomaly Detection",
